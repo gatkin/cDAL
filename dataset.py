@@ -44,6 +44,34 @@ class Model:
 
         return c_type
 
+    def get_free_function_name(self):
+        """Returns the name of the function to free model structs"""
+        return self.name + '_free'
+
+    def get_init_function_name(self):
+        """Returns the name of the function to initialize model structs"""
+        return self.name + '_init'
+
+    def get_list_c_type(self):
+        """Returns the name of the struct to hold a list of models"""
+        return self.name + '_list_t'
+
+    def get_list_free_function_name(self):
+        """Returns the name of the function to free a list of models"""
+        return self.name + '_list_free'
+
+    def get_list_init_function_name(self):
+        """Returns the name of the function to initialize a list of models"""
+        return self.name + '_list_init'
+
+    def get_list_pointer_type(self):
+        """Returns a string to declare a pointer to a list of models"""
+        return self.get_list_c_type() + '*'
+
+    def get_pointer_type(self):
+        """Returns a string to declare a pointer to the model's struct type"""
+        return self.get_c_type() + '*'
+
     def get_table_name(self):
         """Returns the name of the model's database table"""
         if self._table_name:
@@ -65,3 +93,47 @@ class ModelField:
     def __repr__(self):
         return 'ModelField(name={},field_type={},max_length={})'.format(
             self.name, self.field_type, self.max_length)
+
+    def get_name_declaration(self):
+        """Returns the string to declare the field's name"""
+        if self.has_max_length():
+            name_declaration = '{}[ {} ]'.format(self.name, self.max_length)
+        else:
+            name_declaration = self.name
+
+        return name_declaration
+
+    def get_type_declaration(self):
+        """Returns the string to declare the field's type"""
+        c_type = self._get_c_type()
+
+        if self.is_dynamically_allocated():
+            # Need to make it a pointer type if it is dynamically allocated
+            type_declaration = c_type + '*'
+        else:
+            type_declaration = c_type
+
+        return type_declaration
+
+    def has_max_length(self):
+        """Returns True if the model field has a specified maximum length"""
+        return self.max_length > 0
+
+    def is_dynamically_allocated(self):
+        """Returns True if the memory for the field is dynamically allocated"""
+        dynamic_types = {ModelFieldType.BLOB, ModelFieldType.TEXT}
+
+        return (self.field_type in dynamic_types) and (not self.has_max_length())
+
+    def _get_c_type(self):
+        """Returns the C-type corresponding to the field's model field type"""
+        c_types = {
+            ModelFieldType.PRIMARY_KEY: 'sqlite3_int64',
+            ModelFieldType.FOREIGN_KEY: 'sqlite3_int64',
+            ModelFieldType.INTEGER: 'int',
+            ModelFieldType.REAL: 'double',
+            ModelFieldType.TEXT: 'char',
+            ModelFieldType.BLOB: 'char',
+        }
+
+        return c_types[self.field_type]
