@@ -12,7 +12,7 @@ THIS FILE IS AUTO-GENERATED. DO NOT EDIT DIRECTLY. ALL CHANGES WILL BE LOST.
 ************************************************************************/
 
 {% for include in includes %}
-{{include}}
+#include {{include}}
 {% endfor %}
 
 /************************************************************************
@@ -62,4 +62,4 @@ void {{model.get_list_init_function_name()}}
 
 {% endfor %}
 
-#endif /* #define{{dataset | header_guard_macro }}  */
+#endif /* #define {{dataset | header_guard_macro }}  */

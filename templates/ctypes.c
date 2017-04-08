@@ -91,7 +91,7 @@ void {{model.get_list_init_function_name()}}
     {{model.get_list_pointer_type()}} models
     )
 {
-memset( modesl, 0, sizeof( *models ) );
+memset( models, 0, sizeof( *models ) );
 } /* {{model.get_list_init_function_name()}} */
 
 {% endfor %}
