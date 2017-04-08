@@ -81,6 +81,10 @@ class Model:
 
         return table_name
 
+    def has_dynamic_fields(self):
+        """Returns True if the model has any dynamically-allocated fields"""
+        return any((field.is_dynamically_allocated() for field in self.fields))
+
 
 class ModelField:
     """Represents a field of a model corresponding to a single database table column"""
