@@ -1,6 +1,6 @@
 """Generates files to define and work with C structs corresponding to dataset models"""
 import os
-import codgen.templates as templates
+import codegen.templates as templates
 
 
 def ctypes_header_file_create(dataset, output_dir, custom_includes=None):
