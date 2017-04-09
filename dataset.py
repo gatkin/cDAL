@@ -98,6 +98,19 @@ class ModelField:
         return 'ModelField(name={},field_type={},max_length={})'.format(
             self.name, self.field_type, self.max_length)
 
+    def get_column_type(self):
+        """Returns the database column type corresponding to the field type"""
+        column_types = {
+            ModelFieldType.PRIMARY_KEY: 'INTEGER PRIMARY KEY',
+            ModelFieldType.FOREIGN_KEY: 'INTEGER',
+            ModelFieldType.INTEGER: 'INTEGER',
+            ModelFieldType.REAL: 'REAL',
+            ModelFieldType.TEXT: 'TEXT',
+            ModelFieldType.BLOB: 'BLOB',
+        }
+
+        return column_types[self.field_type]
+
     def get_name_declaration(self):
         """Returns the string to declare the field's name"""
         if self.has_max_length():
