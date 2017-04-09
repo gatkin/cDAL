@@ -25,13 +25,13 @@ int {{dataset | database_initialize_function_name}}
     );
 
 {% for model in dataset.models %}
-int {{model | get_all_function_name}}
+int {{model | models_get_all_function_name}}
     (
     sqlite3 * db,
     {{model.get_list_pointer_type()}} models_out
     );
 
-int {{model | insert_new_function_name}}
+int {{model | model_insert_new_function_name}}
     (
     sqlite3 * db,
     {{model.get_pointer_type()}} model

@@ -82,14 +82,14 @@ return success;
 {% for model in dataset.models %}
 /**************************************************
 *
-*    {{model | get_all_function_name}} - Get all {{model.name}} models
+*    {{model | models_get_all_function_name}} - Get all {{model.name}} models
 *
 *    Retrieves all {{model.name}} models from the
 *    provided database. The caller must call
 *    {{model.get_list_free_function_name()}} on models_out.
 *
 **************************************************/
-int {{model | get_all_function_name}}
+int {{model | models_get_all_function_name}}
     (
     sqlite3 * db,
     {{model.get_list_pointer_type()}} models_out
@@ -116,14 +116,14 @@ return ( CQLITE_SUCCESS == rcode );
 
 /**************************************************
 *
-*    {{model | insert_new_function_name}} - Insert new {{model.name}}
+*    {{model | model_insert_new_function_name}} - Insert new {{model.name}}
 *
 *    Inserts a new {{model.name}} record into the
 *    provided database. The model parameter's id field
 *    is modified with the generated insert id.
 *
 **************************************************/
-int {{model | insert_new_function_name}}
+int {{model | model_insert_new_function_name}}
     (
     sqlite3 * db,
     {{model.get_pointer_type()}} model

@@ -20,8 +20,8 @@ def accessor_header_render(dataset):
     env = templates.environment_create()
     env.filters['header_guard_macro'] = _accessor_header_guard_macro_get
     env.filters['header_name'] = _accessor_header_name_get
-    env.filters['get_all_function_name'] = _get_all_function_name
-    env.filters['insert_new_function_name'] = _insert_new_function_name
+    env.filters['models_get_all_function_name'] = _models_get_all_function_name
+    env.filters['model_insert_new_function_name'] = _model_insert_new_function_name
     env.filters['database_initialize_function_name'] = _database_initialize_function_name
 
     template_file = templates.template_file_get(templates.CDALTemplate.ACCESSOR_HEADER)
@@ -42,8 +42,8 @@ def accessor_source_render(dataset):
 
     env = templates.environment_create()
     env.filters['source_name'] = _accessor_source_name_get
-    env.filters['get_all_function_name'] = _get_all_function_name
-    env.filters['insert_new_function_name'] = _insert_new_function_name
+    env.filters['models_get_all_function_name'] = _models_get_all_function_name
+    env.filters['model_insert_new_function_name'] = _model_insert_new_function_name
     env.filters['table_create_query_var'] = _table_create_query_var
     env.filters['field_column_enum'] = _field_column_enum
     env.filters['model_from_row_result_function_name'] = _model_from_row_result_function_name
@@ -128,15 +128,6 @@ def _field_read_result_function_call(field, model, query_var, model_var, success
 
     return result_call
 
-def _get_all_function_name(model):
-    """Returns the name of the function to retrieve all models from the database"""
-    return '{}_get_all'.format(model.get_table_name())
-
-
-def _insert_new_function_name(model):
-    """Returns the name of the function to insert a new model object into the database"""
-    return '{}_insert_new'.format(model.get_table_name())
-
 
 def _model_add_to_result_list_function_name(model):
     """Returns the name of the function to add a model to a query result list"""
@@ -148,6 +139,11 @@ def _model_from_row_result_function_name(model):
     return '{}_from_row_result'.format(model.name)
 
 
+def _model_insert_new_function_name(model):
+    """Returns the name of the function to insert a new model object into the database"""
+    return '{}_insert_new'.format(model.get_table_name())
+
+
 def _model_insert_query_string(model):
     """Returns the query string to insert a model into the database"""
     parameters = ', '.join(['?'] * len(model.fields))
@@ -155,6 +151,11 @@ def _model_insert_query_string(model):
         model.get_table_name(), parameters)
 
     return query
+
+
+def _models_get_all_function_name(model):
+    """Returns the name of the function to retrieve all models from the database"""
+    return '{}_get_all'.format(model.get_table_name())
 
 
 def _table_create_query_var(model):
