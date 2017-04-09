@@ -72,6 +72,11 @@ class Model:
         """Returns a string to declare a pointer to the model's struct type"""
         return self.get_c_type() + '*'
 
+    def get_primary_key_field(self):
+        """Returns the model's primary key field"""
+        primary_key_field, = (field for field in self.fields if field.is_primary_key())
+        return primary_key_field
+
     def get_table_name(self):
         """Returns the name of the model's database table"""
         if self._table_name:
@@ -98,6 +103,19 @@ class ModelField:
         return 'ModelField(name={},field_type={},max_length={})'.format(
             self.name, self.field_type, self.max_length)
 
+    def get_bind_function_name(self):
+        """Returns the name of the function to bind values of the field's type to qeury parameters"""
+        bind_functions = {
+            ModelFieldType.PRIMARY_KEY: 'sqlite3_bind_int64',
+            ModelFieldType.FOREIGN_KEY: 'sqlite3_bind_int64',
+            ModelFieldType.INTEGER: 'sqlite3_bind_int',
+            ModelFieldType.REAL: 'sqlite3_bind_double',
+            ModelFieldType.TEXT: 'sqlite3_bind_text',
+            ModelFieldType.BLOB: 'sqlite3_bind_blob'
+        }
+
+        return bind_functions[self.field_type]
+
     def get_column_type(self):
         """Returns the database column type corresponding to the field type"""
         column_types = {
@@ -120,6 +138,34 @@ class ModelField:
 
         return name_declaration
 
+    def get_read_result_function_name(self):
+        """Returns the name of the function to read the field value from a query result"""
+        primitive_result_functions = {
+            ModelFieldType.PRIMARY_KEY: 'sqlite3_column_int64',
+            ModelFieldType.FOREIGN_KEY: 'sqlite3_column_int64',
+            ModelFieldType.INTEGER: 'sqlite3_column_int',
+            ModelFieldType.REAL: 'sqlite3_column_double',
+        }
+
+        dynamic_result_functions = {
+            ModelFieldType.TEXT: 'cqlite_dynamic_string_read',
+            ModelFieldType.BLOB: 'cqlite_dynamic_blob_read',
+        }
+
+        fixed_size_result_functions = {
+            ModelFieldType.TEXT: 'cqlite_fixed_length_string_read',
+            ModelFieldType.BLOB: 'cqltie_fixed_length_blob_read',
+        }
+
+        if self.is_primitive_type():
+            result_function = primitive_result_functions[self.field_type]
+        elif self.is_dynamically_allocated():
+            result_function = dynamic_result_functions[self.field_type]
+        else:
+            result_function = fixed_size_result_functions[self.field_type]
+
+        return result_function
+
     def get_type_declaration(self):
         """Returns the string to declare the field's type"""
         c_type = self._get_c_type()
@@ -138,9 +184,18 @@ class ModelField:
 
     def is_dynamically_allocated(self):
         """Returns True if the memory for the field is dynamically allocated"""
-        dynamic_types = {ModelFieldType.BLOB, ModelFieldType.TEXT}
+        return (not self.is_primitive_type()) and (not self.has_max_length())
 
-        return (self.field_type in dynamic_types) and (not self.has_max_length())
+    def is_primary_key(self):
+        """Returns True if the field is a primary key field"""
+        return self.field_type == ModelFieldType.PRIMARY_KEY
+
+    def is_primitive_type(self):
+        """Returns True if the field is a primitive type field"""
+        primitive_types = {ModelFieldType.PRIMARY_KEY, ModelFieldType.FOREIGN_KEY,
+                           ModelFieldType.INTEGER, ModelFieldType.REAL}
+
+        return self.field_type in primitive_types
 
     def _get_c_type(self):
         """Returns the C-type corresponding to the field's model field type"""

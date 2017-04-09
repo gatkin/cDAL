@@ -38,6 +38,48 @@ enum
 ************************************************************************/
 
 {% for model in dataset.models %}
+static int {{model | model_add_to_result_list_function_name}}
+    (
+    sqlite3_stmt * query,
+    void * model_list,
+    int next_model_list_idx
+    );
+
+static int {{model | model_from_row_result_function_name}}
+    (
+    sqlite3_stmt * query,
+    void * model_out
+    );
+
+{% endfor %}
+
+
+/**************************************************
+*
+*    {{dataset | database_initialize_function_name}} - Initialize database
+*
+*    Initializes all tables in the {{dataset.name}}
+*    database.
+*
+**************************************************/
+int {{dataset | database_initialize_function_name}}
+    (
+    sqlite3 * db
+    )
+{
+int success;
+
+success = 1;
+
+{% for model in dataset.models %}
+success &= ( SQLITE_OK == sqlite3_exec( db, {{model | table_create_query_var}}, NULL, NULL, NULL ) );
+{% endfor %}
+
+return success;
+}
+
+
+{% for model in dataset.models %}
 /**************************************************
 *
 *    {{model | get_all_function_name}} - Get all {{model.name}} models
@@ -53,7 +95,22 @@ int {{model | get_all_function_name}}
     {{model.get_list_pointer_type()}} models_out
     )
 {
-return 0;
+cqlite_rcode_t rcode;
+
+{{model.get_list_init_function_name()}}( models_out );
+
+rcode = cqlite_select_query_execute
+    (
+    db,
+    "SELECT * FROM {{model.get_table_name()}};",
+    "SELECT COUNT(*) FROM {{model.get_table_name()}};",
+    {{model | model_add_to_result_list_function_name}},
+    sizeof( *models_out->list ),
+    (void**)&models_out->list,
+    &models_out->cnt
+    );
+
+return ( CQLITE_SUCCESS == rcode );
 }
 
 
@@ -72,7 +129,82 @@ int {{model | insert_new_function_name}}
     {{model.get_pointer_type()}} model
     )
 {
-return 0;
+int success;
+sqlite3_stmt * insert_query;
+
+insert_query = NULL;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{ model | model_insert_query_string}}, -1, &insert_query, NULL ) );
+
+// Bind all but the model's primary key so a new primary key is generated upon insertion
+{%for field in model.fields if not field.is_primary_key() %}
+success &= ( SQLITE_OK == {{field | field_bind_function_call(model, 'insert_query', 'model')}} );
+{% endfor %}
+
+success &= ( CQLITE_SUCCESS == cqlite_insert_query_execute( db, insert_query, &model->{{model.get_primary_key_field().name}} ) );
+
+sqlite3_finalize( insert_query );
+
+return success;
+}
+
+{% endfor %}
+
+{% for model in dataset.models %}
+/**************************************************
+*
+*    {{model | model_add_to_result_list_function_name}} - Add to result list
+*
+*    A cqlite_model_add_to_list_func_t function to
+*    read the provided query row result as a {{model.name}}
+*    model into the provided list at the specified index.
+*
+**************************************************/
+static int {{model | model_add_to_result_list_function_name}}
+    (
+    sqlite3_stmt * query,
+    void * model_list,
+    int next_model_list_idx
+    )
+{
+{{model.get_pointer_type()}} models;
+
+models = ({{model.get_pointer_type()}})model_list;
+
+return {{model | model_from_row_result_function_name}}( query, &models[next_model_list_idx] );
+}
+
+
+/**************************************************
+*
+*    {{model | model_from_row_result_function_name}} - Model from row result
+*
+*    A cqlite_model_from_row_result_func_t function
+*    that reads the provided query row result as a
+*    {{model.name}} model.
+*
+**************************************************/
+static int {{model | model_from_row_result_function_name}}
+    (
+    sqlite3_stmt * query,
+    void * model_out
+    )
+{
+int success;
+{{model.get_pointer_type()}} model;
+
+success = 1;
+model = ({{model.get_pointer_type()}})model_out;
+
+{% for field in model.fields if field.is_primitive_type() %}
+{{field | field_read_result_function_call(model, 'query', 'model', 'success')}}
+{% endfor %}
+
+{% for field in model.fields if not field.is_primitive_type() %}
+{{field | field_read_result_function_call(model, 'query', 'model', 'success')}}
+{% endfor %}
+
+return success;
 }
 
 {% endfor %}

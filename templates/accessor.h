@@ -19,6 +19,11 @@ THIS FILE IS AUTO-GENERATED. DO NOT EDIT DIRECTLY. ALL CHANGES WILL BE LOST.
                                PROCEDURES
 ************************************************************************/
 
+int {{dataset | database_initialize_function_name}}
+    (
+    sqlite3 * db
+    );
+
 {% for model in dataset.models %}
 int {{model | get_all_function_name}}
     (
