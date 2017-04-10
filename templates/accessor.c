@@ -204,6 +204,60 @@ return success;
 
 /**************************************************
 *
+*    {{model | model_save_existing_function_name}} - Save existing {{model.name}}
+*
+*    Saves the provided {{model.name}} as an existing
+*    record in the database, updating any records
+*    with a matching primary key.
+*
+**************************************************/
+int {{model | model_save_existing_function_name}}
+    (
+    sqlite3 * db,
+    {{model.get_constant_pointer_type()}} model
+    )
+{
+int success;
+sqlite3_stmt * insert_query;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{ model | model_insert_query_string}}, -1, &insert_query, NULL ) );
+
+{%for field in model.fields%}
+success &= ( SQLITE_OK == {{field | field_bind_function_call(model, 'insert_query', 'model')}} );
+{% endfor %}
+
+success &= ( SQLITE_DONE == sqlite3_step( insert_query ) );
+
+sqlite3_finalize( insert_query );
+
+return success;
+}
+
+
+/**************************************************
+*
+*    {{model | models_count_all_function_name}} - Get number of {{model.name}} models
+*
+*    Gets the number of {{model.name}} models in
+*    the database.
+*
+**************************************************/
+int {{model | models_count_all_function_name}}
+    (
+    sqlite3 * db,
+    int * count_out
+    )
+{
+cqlite_rcode_t rcode;
+
+rcode = cqlite_count_query_execute( db, "SELECT COUNT(*) FROM {{model.get_table_name()}};", count_out );
+
+return ( CQLITE_SUCCESS == rcode );
+}
+
+
+/**************************************************
+*
 *    {{model | models_get_all_function_name}} - Get all {{model.name}} models
 *
 *    Retrieves all {{model.name}} models from the
@@ -234,6 +288,95 @@ rcode = cqlite_select_query_execute
 
 return ( CQLITE_SUCCESS == rcode );
 }
+
+
+/**************************************************
+*
+*    {{model | models_insert_all_new_function_name}} - Insert all {{model.name}} as new models
+*
+*    Inserts all provided {{model.name}} models into the
+*    database. The id fields of each item in the models
+*    list is modified with the generated insert id for
+*    that model.
+*
+**************************************************/
+int {{model | models_insert_all_new_function_name}}
+    (
+    sqlite3 * db,
+    {{model.get_list_pointer_type()}} models
+    )
+{
+int success;
+sqlite3_stmt * insert_query;
+int i;
+{{model.get_pointer_type()}} model;
+
+insert_query = NULL;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{ model | model_insert_query_string}}, -1, &insert_query, NULL ) );
+
+for( i = 0; ( success ) && ( i < models->cnt ); i++)
+    {
+    model = &models->list[i];
+
+    // Bind all but the model's primary key so a new primary key is generated upon insertion
+    {%for field in model.fields if not field.is_primary_key() %}
+    success &= ( SQLITE_OK == {{field | field_bind_function_call(model, 'insert_query', 'model')}} );
+    {% endfor %}
+
+    success &= ( CQLITE_SUCCESS == cqlite_insert_query_execute( db, insert_query, &model->{{model.get_primary_key_field().name}} ) );
+
+    success &= ( SQLITE_OK == sqlite3_clear_bindings( insert_query ) );
+    }
+
+sqlite3_finalize( insert_query );
+
+return success;
+}
+
+
+/**************************************************
+*
+*    {{model | models_save_all_existing_function_name}} - Save all {{model.name}} as existing models
+*
+*    Saves all provided {{model.name}} models into the
+*    database as existing records updating any previous
+*    records with matching ids.
+*
+**************************************************/
+int {{model | models_save_all_existing_function_name}}
+    (
+    sqlite3 * db,
+    {{model.get_list_constant_pointer_type()}} models
+    )
+{
+int success;
+sqlite3_stmt * insert_query;
+int i;
+{{model.get_pointer_type()}} model;
+
+insert_query = NULL;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{ model | model_insert_query_string}}, -1, &insert_query, NULL ) );
+
+for( i = 0; ( success ) && ( i < models->cnt ); i++)
+    {
+    model = &models->list[i];
+
+    {%for field in model.fields %}
+    success &= ( SQLITE_OK == {{field | field_bind_function_call(model, 'insert_query', 'model')}} );
+    {% endfor %}
+
+    success &= ( SQLITE_DONE == sqlite3_step( insert_query ) );
+
+    success &= ( SQLITE_OK == sqlite3_clear_bindings( insert_query ) );
+    }
+
+sqlite3_finalize( insert_query );
+
+return success;
+}
+
 
 {% endfor %}
 

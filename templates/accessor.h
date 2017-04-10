@@ -59,7 +59,7 @@ int {{model | model_save_existing_function_name}}
 int {{model | models_count_all_function_name}}
     (
     sqlite3 * db,
-    int * cnt_out
+    int * count_out
     );
 
 int {{model | models_delete_all_function_name}}
