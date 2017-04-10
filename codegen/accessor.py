@@ -18,11 +18,19 @@ def accessor_header_render(dataset):
     includes = ['<sqlite3.h>', ctypes_header_include_get(dataset)]
 
     env = templates.environment_create()
+    env.filters['database_delete_all_data_function_name'] = _database_delete_all_data_function_name
+    env.filters['database_initialize_function_name'] = _database_initialize_function_name
     env.filters['header_guard_macro'] = _accessor_header_guard_macro_get
     env.filters['header_name'] = _accessor_header_name_get
-    env.filters['models_get_all_function_name'] = _models_get_all_function_name
+    env.filters['model_delete_by_id_function_name'] = _model_delete_by_id_function_name
+    env.filters['model_find_by_id_function_name'] = _model_find_by_id_function_name
     env.filters['model_insert_new_function_name'] = _model_insert_new_function_name
-    env.filters['database_initialize_function_name'] = _database_initialize_function_name
+    env.filters['model_save_existing_function_name'] = _model_save_existing_function_name
+    env.filters['models_get_all_function_name'] = _models_get_all_function_name
+    env.filters['models_count_all_function_name'] = _models_count_all_function_name
+    env.filters['models_delete_all_function_name'] = _models_delete_all_function_name
+    env.filters['models_insert_all_new_function_name'] = _models_insert_all_new_function_name
+    env.filters['models_save_all_existing_function_name'] = _models_save_all_function_name
 
     template_file = templates.template_file_get(templates.CDALTemplate.ACCESSOR_HEADER)
     return env.get_template(template_file).render(dataset=dataset, includes=includes)
@@ -41,17 +49,25 @@ def accessor_source_render(dataset):
     includes = ['<stddef.h>', '"cqlite.h"', _accessor_header_include_get(dataset)]
 
     env = templates.environment_create()
-    env.filters['source_name'] = _accessor_source_name_get
-    env.filters['models_get_all_function_name'] = _models_get_all_function_name
-    env.filters['model_insert_new_function_name'] = _model_insert_new_function_name
-    env.filters['table_create_query_var'] = _table_create_query_var
-    env.filters['field_column_enum'] = _field_column_enum
-    env.filters['model_from_row_result_function_name'] = _model_from_row_result_function_name
-    env.filters['model_add_to_result_list_function_name'] = _model_add_to_result_list_function_name
-    env.filters['model_insert_query_string'] = _model_insert_query_string
-    env.filters['field_bind_function_call'] = _field_bind_function_call
+    env.filters['database_delete_all_data_function_name'] = _database_delete_all_data_function_name
     env.filters['database_initialize_function_name'] = _database_initialize_function_name
+    env.filters['field_bind_function_call'] = _field_bind_function_call
+    env.filters['field_column_enum'] = _field_column_enum
     env.filters['field_read_result_function_call'] = _field_read_result_function_call
+    env.filters['model_add_to_result_list_function_name'] = _model_add_to_result_list_function_name
+    env.filters['model_delete_by_id_function_name'] = _model_delete_by_id_function_name
+    env.filters['model_find_by_id_function_name'] = _model_find_by_id_function_name
+    env.filters['model_from_row_result_function_name'] = _model_from_row_result_function_name
+    env.filters['model_insert_new_function_name'] = _model_insert_new_function_name
+    env.filters['model_insert_query_string'] = _model_insert_query_string
+    env.filters['model_save_existing_function_name'] = _model_save_existing_function_name
+    env.filters['models_count_all_function_name'] = _models_count_all_function_name
+    env.filters['models_delete_all_function_name'] = _models_delete_all_function_name
+    env.filters['models_get_all_function_name'] = _models_get_all_function_name
+    env.filters['models_insert_all_new_function_name'] = _models_insert_all_new_function_name
+    env.filters['models_save_all_existing_function_name'] = _models_save_all_function_name
+    env.filters['source_name'] = _accessor_source_name_get
+    env.filters['table_create_query_var'] = _table_create_query_var
 
     template_file = templates.template_file_get(templates.CDALTemplate.ACCESSOR_SOURCE)
     return env.get_template(template_file).render(dataset=dataset, includes=includes)
@@ -75,6 +91,11 @@ def _accessor_header_name_get(dataset):
 def _accessor_source_name_get(dataset):
     """Returns the name of the dataset's accessor source file"""
     return '{}.cdal.accessor.c'.format(dataset.name)
+
+
+def _database_delete_all_data_function_name(dataset):
+    """Returns the name of the function to delete all data from the dataset's database"""
+    return '{}_database_delete_all_data'.format(dataset.name)
 
 
 def _database_initialize_function_name(dataset):
@@ -134,6 +155,16 @@ def _model_add_to_result_list_function_name(model):
     return '{}_add_to_result_list'.format(model.name)
 
 
+def _model_delete_by_id_function_name(model):
+    """Returns the name of the function to delete a model by id"""
+    return '{}_delete_by_id'.format(model.get_table_name())
+
+
+def _model_find_by_id_function_name(model):
+    """Returns the name of the function to find a model record by its id"""
+    return '{}_find_by_id'.format(model.get_table_name())
+
+
 def _model_from_row_result_function_name(model):
     """Returns the name of the function to read a model from a query result"""
     return '{}_from_row_result'.format(model.name)
@@ -153,9 +184,34 @@ def _model_insert_query_string(model):
     return query
 
 
+def _model_save_existing_function_name(model):
+    """Returns the name of the function to save an existing model record into the database"""
+    return '{}_save_existing'.format(model.get_table_name())
+
+
+def _models_count_all_function_name(model):
+    """Returns the name of the function get the number of models in the database"""
+    return '{}_count_all'.format(model.get_table_name())
+
+
+def _models_delete_all_function_name(model):
+    """Returns the name of the function to delete all models from the database"""
+    return '{}_delete_all'.format(model.get_table_name())
+
+
 def _models_get_all_function_name(model):
     """Returns the name of the function to retrieve all models from the database"""
     return '{}_get_all'.format(model.get_table_name())
+
+
+def _models_insert_all_new_function_name(model):
+    """Returns the name of the function to insert a list of models as new records"""
+    return '{}_insert_all_new'.format(model.get_table_name())
+
+
+def _models_save_all_function_name(model):
+    """Returns the name of the function to save a list of models as existing records"""
+    return '{}_save_all_existing'.format(model.get_table_name())
 
 
 def _table_create_query_var(model):

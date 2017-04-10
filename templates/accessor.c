@@ -53,6 +53,29 @@ static int {{model | model_from_row_result_function_name}}
 
 {% endfor %}
 
+/**************************************************
+*
+*    {{dataset | database_delete_all_data_function_name}} - Delete all data
+*
+*    Deletes all data in the {{dataset.name}} database.
+*
+**************************************************/
+int {{dataset | database_delete_all_data_function_name}}
+    (
+    sqlite3 * db
+    )
+{
+int success;
+
+success = 1;
+
+{%for model in dataset.models %}
+success &= ( SQLITE_OK == sqlite3_exec( db, "DELETE FROM {{model.get_table_name()}};", NULL, NULL, NULL ) );
+{% endfor %}
+
+return success;
+}
+
 
 /**************************************************
 *
@@ -82,32 +105,62 @@ return success;
 {% for model in dataset.models %}
 /**************************************************
 *
-*    {{model | models_get_all_function_name}} - Get all {{model.name}} models
+*    {{model | model_delete_by_id_function_name}} - Delete {{model.name}} by id
 *
-*    Retrieves all {{model.name}} models from the
-*    provided database. The caller must call
-*    {{model.get_list_free_function_name()}} on models_out.
+*    Inserts the {{model.name}} record in the database
+*    with the specified id.
 *
 **************************************************/
-int {{model | models_get_all_function_name}}
+int {{model | model_delete_by_id_function_name}}
     (
     sqlite3 * db,
-    {{model.get_list_pointer_type()}} models_out
+    sqlite3_int64 id
+    )
+{
+int success;
+sqlite3_stmt * delete_query;
+
+delete_query = NULL;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, "DELETE FROM {{model.get_table_name()}} WHERE {{model.get_primary_key_field().name}} = ?;", -1, &delete_query, NULL ) );
+success &= ( SQLITE_OK == sqlite3_bind_int64( delete_query, 1, id ) );
+
+success &= ( SQLITE_DONE == sqlite3_step( delete_query ) );
+
+sqlite3_finalize( delete_query );
+
+return success;
+}
+
+
+/**************************************************
+*
+*    {{model | model_find_by_id_function_name}} - Find {{model.name}} by id
+*
+*    Retrieves the
+*
+**************************************************/
+int {{model | model_find_by_id_function_name}}
+    (
+    sqlite3 * db,
+    sqlite3_int64 id,
+    int * found_out,
+    {{model.get_pointer_type()}} model_out
     )
 {
 cqlite_rcode_t rcode;
 
-{{model.get_list_init_function_name()}}( models_out );
+*found_out = 0;
+{{model.get_init_function_name()}}( model_out );
 
-rcode = cqlite_select_query_execute
+rcode = cqlite_find_by_id
     (
     db,
-    "SELECT * FROM {{model.get_table_name()}};",
-    "SELECT COUNT(*) FROM {{model.get_table_name()}};",
-    {{model | model_add_to_result_list_function_name}},
-    sizeof( *models_out->list ),
-    (void**)&models_out->list,
-    &models_out->cnt
+    "SELECT * FROM {{model.get_table_name()}} WHERE {{model.get_primary_key_field().name}} = ?;",
+    id,
+    {{model | model_from_row_result_function_name}},
+    found_out,
+    model_out
     );
 
 return ( CQLITE_SUCCESS == rcode );
@@ -146,6 +199,40 @@ success &= ( CQLITE_SUCCESS == cqlite_insert_query_execute( db, insert_query, &m
 sqlite3_finalize( insert_query );
 
 return success;
+}
+
+
+/**************************************************
+*
+*    {{model | models_get_all_function_name}} - Get all {{model.name}} models
+*
+*    Retrieves all {{model.name}} models from the
+*    provided database. The caller must call
+*    {{model.get_list_free_function_name()}} on models_out.
+*
+**************************************************/
+int {{model | models_get_all_function_name}}
+    (
+    sqlite3 * db,
+    {{model.get_list_pointer_type()}} models_out
+    )
+{
+cqlite_rcode_t rcode;
+
+{{model.get_list_init_function_name()}}( models_out );
+
+rcode = cqlite_select_query_execute
+    (
+    db,
+    "SELECT * FROM {{model.get_table_name()}};",
+    "SELECT COUNT(*) FROM {{model.get_table_name()}};",
+    {{model | model_add_to_result_list_function_name}},
+    sizeof( *models_out->list ),
+    (void**)&models_out->list,
+    &models_out->cnt
+    );
+
+return ( CQLITE_SUCCESS == rcode );
 }
 
 {% endfor %}

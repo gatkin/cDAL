@@ -44,6 +44,10 @@ class Model:
 
         return c_type
 
+    def get_constant_pointer_type(self):
+        """Returns a string to declare a constant pointer to the model's C type"""
+        return self.get_c_type() + ' const *'
+
     def get_free_function_name(self):
         """Returns the name of the function to free model structs"""
         return self.name + '_free'
@@ -56,6 +60,10 @@ class Model:
         """Returns the name of the struct to hold a list of models"""
         return self.name + '_list_t'
 
+    def get_list_constant_pointer_type(self):
+        """Returns a string to declare a constant pointer to a list of models"""
+        return self.get_list_c_type() + ' const *'
+
     def get_list_free_function_name(self):
         """Returns the name of the function to free a list of models"""
         return self.name + '_list_free'
@@ -66,11 +74,11 @@ class Model:
 
     def get_list_pointer_type(self):
         """Returns a string to declare a pointer to a list of models"""
-        return self.get_list_c_type() + '*'
+        return self.get_list_c_type() + ' *'
 
     def get_pointer_type(self):
         """Returns a string to declare a pointer to the model's struct type"""
-        return self.get_c_type() + '*'
+        return self.get_c_type() + ' *'
 
     def get_primary_key_field(self):
         """Returns the model's primary key field"""
