@@ -62,7 +62,31 @@ To use cDAL, developers provide a dataset definition JSON file to specify the mo
                     {
                         "name": "races_get_all_by_distance",
                         "query": "WHERE distance > {min_distance:Real} AND distance < {max_distance:Real} GROUP BY {state:Text}"
-                    },
+                    }
+                ],
+                "count": [
+                    {
+                        "name": "races_count_all_by_state",
+                        "query": "WHERE state = {state:Text}"
+                    }
+                ],
+                "delete": [
+                    {
+                        "name": "races_delete_all_by_distance_and_state",
+                        "query": "WHERE distance > {min_distance:Real} AND distance < {max_distance:Real} AND {state:Text}"
+                    }
+                ],
+                "update": [
+                    {
+                        "name": "races_update_name",
+                        "query": "SET name = {name:Text} WHERE state = {state:Text} AND distance = {distance:Real}"
+                    }
+                ],
+                "find": [
+                    {
+                        "name": "races_find_by_name_and_state",
+                        "query": "WHERE name = {name:Text} AND {state:Text} = state"
+                    }
                 ]
             }
         },
@@ -106,7 +130,7 @@ To use cDAL, developers provide a dataset definition JSON file to specify the mo
                         "query": "WHERE gender = {gender:Text} GROUP BY {age:Integer}"
                     }
                 ]
-            }   
+            }
         },
         {
             "name": "race_result",
@@ -141,7 +165,7 @@ To use cDAL, developers provide a dataset definition JSON file to specify the mo
                         "query": "WHERE runner_id = {runner_id:ForeignKey}"
                     }
                 ]
-            } 
+            }
         }
     ]
 }
@@ -195,47 +219,105 @@ typedef struct
 ```
 As well as the following data access procedures:
 ```C
+int races_delete_by_id
+    (
+    sqlite3 * db,
+    sqlite3_int64 id
+    );
+
+int races_find_by_id
+    (
+    sqlite3 * db,
+    sqlite3_int64 id,
+    int * found_out,
+    race_t * model_out
+    );
+
+int races_insert_new
+    (
+    sqlite3 * db,
+    race_t * model
+    );
+
+int races_save_existing
+    (
+    sqlite3 * db,
+    race_t const * model
+    );
+
+int races_count_all
+    (
+    sqlite3 * db,
+    int * count_out
+    );
+
 int races_delete_all
     (
-    void
+    sqlite3 * db
     );
 
 int races_get_all
     (
     sqlite3 * db,
-    race_list_t * races_out
-    );
-
-int races_get_all_by_distance
-    (
-    double min_distance,
-    double max_distance,
-    race_list_t * races_out
-    );
-
-int races_get_all_by_state
-    (
-    char const * state,
-    race_list_t * races_out
+    race_list_t * models_out
     );
 
 int races_insert_all_new
     (
-    race_list_t * races
-    );
-
-int races_insert_new
-    (
-    race_t * race
-    );
-
-int races_save_existing
-    (
-    race_t const * race
+    sqlite3 * db,
+    race_list_t * models
     );
 
 int races_save_all_existing
     (
-    race_list_t const * races
+    sqlite3 * db,
+    race_list_t const * models
+    );
+
+int races_count_all_by_state
+    (
+    sqlite3 * db,
+    char * state,
+    int * count_out
+    );
+
+int races_delete_all_by_distance_and_state
+    (
+    sqlite3 * db,
+    double min_distance,
+    double max_distance,
+    char * state
+    );
+
+int races_find_by_name_and_state
+    (
+    sqlite3 * db,
+    char * name,
+    char * state,
+    race_t * model_out
+    );
+
+int races_get_all_by_state
+    (
+    sqlite3 * db,
+    char * state,
+    race_list_t * models_out
+    );
+
+int races_get_all_by_distance
+    (
+    sqlite3 * db,
+    double min_distance,
+    double max_distance,
+    char * state,
+    race_list_t * models_out
+    );
+
+int races_update_name
+    (
+    sqlite3 * db,
+    char * name,
+    char * state,
+    double distance
     );
 ```

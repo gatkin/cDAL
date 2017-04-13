@@ -223,7 +223,7 @@ def _query_get_full_string(query, model):
 
 
 def _query_param_bind_call(query_param, query_var):
-    """Returns the function call to bind a custom query parameter"""
+    """Returns the function call to bind a parameter to a custom query"""
     if query_param.param_type.is_primitive_type():
         bind_call_template ='{bind_function}( {query_var}, {param_position}, {param_name} )'
     else:
