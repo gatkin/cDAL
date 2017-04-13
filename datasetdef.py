@@ -1,11 +1,15 @@
 """Contains functionality for parsing cDAL dataset definitions"""
 import json
 import jsonschema
-
+import re
 import dataset
 
 
 _SCHEMA_FILE_PATH = 'dataset.schema.json'
+
+# Query parameters are specified in the format 'WHERE id = {model_id:PrimaryKey}'
+_QUERY_PARAMETER_PATTERN = r'{(\w+):(\w+)}'
+_QUERY_PARAMETER_RE = re.compile(_QUERY_PARAMETER_PATTERN)
 
 
 class DatasetDefinitionError(Exception):
@@ -39,13 +43,19 @@ def _validate_definition(definition):
 def _model_from_definition(model_definition):
     """Parses the given model definition dictionary into a Model"""
     name = model_definition['name']
-    fields = [_field_from_definition(field_definition) for field_definition in model_definition['fields']]
 
     # Get the values for the optional fields
     type_name = model_definition.get('typeName')
     table_name = model_definition.get('tableName')
 
-    return dataset.Model(name, fields, type_name, table_name)
+    fields = [_field_from_definition(field_definition) for field_definition in model_definition['fields']]
+
+    if 'queries' in model_definition:
+        queries = _queries_from_definition(model_definition['queries'])
+    else:
+        queries = []
+
+    return dataset.Model(name, fields, queries, type_name, table_name)
 
 
 def _field_from_definition(field_definition):
@@ -59,13 +69,13 @@ def _field_from_definition(field_definition):
 
 def _field_type_get(input_field_type):
     """Parses field type from field type specified in the definition"""
-    matching_type = [field_type for field_type in dataset.ModelFieldType
-                     if field_type.value == input_field_type]
-
-    if len(matching_type) == 0:
+    try:
+        matching_type, = [field_type for field_type in dataset.ModelFieldType
+                          if field_type.value == input_field_type]
+    except ValueError:
         raise DatasetDefinitionError('Invalid field type: ' + input_field_type)
 
-    return matching_type[0]
+    return matching_type
 
 
 def _field_max_length_get(field_type, field_definition):
@@ -88,3 +98,57 @@ def _field_max_length_get(field_type, field_definition):
 def _field_type_can_have_max_length(field_type):
     """Returns True if the given ModelFieldType can have a maximum length attribute"""
     return field_type in {dataset.ModelFieldType.TEXT, dataset.ModelFieldType.BLOB}
+
+
+def _queries_from_definition(query_defs):
+    """Parses all model queries defined for a model"""
+    query_types = {
+        'count': dataset.ModelQueryType.COUNT,
+        'delete': dataset.ModelQueryType.DELETE,
+        'find': dataset.ModelQueryType.FIND,
+        'select': dataset.ModelQueryType.SELECT,
+        'update': dataset.ModelQueryType.UPDATE,
+    }
+    queries = []
+    for query_type_key in query_defs:
+        if query_type_key not in query_types:
+            raise DatasetDefinitionError('Invalid query type: ' + query_type_key)
+
+        query_type = query_types[query_type_key]
+        queries += [_query_from_definition(query_type, query_def)
+                    for query_def in query_defs[query_type_key]]
+
+    return queries
+
+
+def _query_from_definition(query_type, query_def):
+    """Parses the provided query definition dictionary"""
+    name = query_def['name']
+    query_def_string = query_def['query']
+    query_string = _query_def_remove_param_defs(query_def_string)
+    parameters = _query_parameters_from_definition(query_def_string)
+
+    return dataset.ModelQuery(query_type, name, query_string, parameters)
+
+
+def _query_parameters_from_definition(query_string):
+    """Extracts the parameters from the provided query definition string"""
+    # Query parameters are one-indexed in SQLite
+    current_position = 1
+    parameters = []
+    for param_name, input_param_type in _QUERY_PARAMETER_RE.findall(query_string):
+        param_type = _field_type_get(input_param_type)
+        parameter = dataset.ModelQueryParam(current_position, param_name, param_type)
+
+        parameters.append(parameter)
+        current_position += 1
+
+    return parameters
+
+
+def _query_def_remove_param_defs(query_def_string):
+    """
+    Removes the parameter definition strings from the query definition string and replaces
+    them with the SQLite parameter placeholder value, a '?'
+    """
+    return _QUERY_PARAMETER_RE.sub('?', query_def_string)
