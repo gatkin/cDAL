@@ -1,6 +1,5 @@
 """Generates code to access models stored in database tables"""
 import os
-from string import Template
 
 from codegen import templates
 from codegen.ctypes import ctypes_header_include_get
@@ -111,18 +110,13 @@ def _field_bind_function_call(field, model, query_var, model_var):
     # SQLite query parameters are 1-indexed, so we need to add one the the column
     # enum value which is 0-index.
     if field.field_type.is_primitive_type():
-        bind_call_template = Template(
-            '$bind_function( $query_var, ($column_enum + 1), $model_var->$field_name )'
-        )
+        bind_call_template ='{bind_function}( {query_var}, ({column_enum} + 1), {model_var}->{field_name} )'
     else:
-        bind_call_template = Template(
-            '$bind_function( $query_var, ($column_enum + 1), $model_var->$field_name, -1, SQLITE_TRANSIENT )'
-        )
+        bind_call_template ='{bind_function}( {query_var}, ({column_enum} + 1), {model_var}->{field_name}, -1, SQLITE_TRANSIENT )'
 
-    bind_call = bind_call_template.substitute(bind_function=field.field_type.get_bind_function_name(),
+    bind_call = bind_call_template.format(bind_function=field.field_type.get_bind_function_name(),
                                               query_var=query_var, column_enum=_field_column_enum(field, model),
                                               model_var=model_var, field_name=field.name)
-
     return bind_call
 
 
@@ -134,22 +128,16 @@ def _field_column_enum(field, model):
 def _field_read_result_function_call(field, model, query_var, model_var, success_var):
     """Returns the function call to read a model field value from a query result"""
     if field.field_type.is_primitive_type():
-        result_call_template = Template(
-            '$model_var->$field_name = $result_function( $query_var, $column_enum );'
-        )
+        result_call_template ='{model_var}->{field_name} = {result_function}( {query_var}, {column_enum} );'
     elif field.is_dynamically_allocated():
-        result_call_template = Template(
-            '$success_var &= ( CQLITE_SUCCESS == $result_function( $query_var, $column_enum, &$model_var->$field_name ) );'
-        )
+        result_call_template = '{success_var} &= ( CQLITE_SUCCESS == {result_function}( {query_var}, {column_enum}, &{model_var}->{field_name} ) );'
     else:
         # Fixed-size field
-        result_call_template = Template(
-            '$success_var &= ( CQLITE_SUCCESS == $result_function( $query_var, $column_enum, $model_var->$field_name, sizeof( $model_var->$field_name ) ) );'
-        )
+        result_call_template = '{success_var} &= ( CQLITE_SUCCESS == {result_function}( {query_var}, {column_enum}, {model_var}->{field_name}, sizeof( {model_var}->{field_name} ) ) );'
 
-    result_call = result_call_template.substitute(result_function=field.get_read_result_function_name(),
-                                                  success_var=success_var, model_var=model_var, query_var=query_var,
-                                                  column_enum=_field_column_enum(field, model), field_name=field.name)
+    result_call = result_call_template.format(result_function=field.get_read_result_function_name(),
+                                              success_var=success_var, model_var=model_var, query_var=query_var,
+                                              column_enum=_field_column_enum(field, model), field_name=field.name)
 
     return result_call
 
