@@ -571,6 +571,44 @@ return success;
 
 
 {% endfor %}
+{%for query in model.get_update_queries() %}
+/**************************************************
+*
+*    {{query.name}}
+*
+*    Executes a custom update query with the provided
+*    parameters on the {{model.get_table_name()}} database table.
+*
+**************************************************/
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}}{%if not loop.last %},{% endif %}
+
+    {% endfor %}
+    )
+{
+int success;
+sqlite3_stmt * update_query;
+
+update_query = NULL;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{query | query_get_full_string(model)}}, -1, &update_query, NULL ) );
+
+{%for query_param in query.params %}
+success &= ( SQLITE_OK == {{query_param | query_param_bind_call('update_query')}} );
+{% endfor %}
+
+success &= ( SQLITE_DONE == sqlite3_step( update_query ) );
+
+sqlite3_finalize( update_query );
+
+return success;
+}
+
+
+{% endfor %}
 {% endfor %}
 
 {% for model in dataset.models %}
