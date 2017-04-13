@@ -20,7 +20,7 @@ static char const * const {{model | table_create_query_var}} =
     "CREATE TABLE IF NOT EXISTS {{model.get_table_name()}}"
     "("
     {% for field in model.fields %}
-    "{{field.name}} {{field.get_column_type()}}{% if not loop.last %},{% endif %}"
+    "{{field.name}} {{field.field_type.get_column_type()}}{% if not loop.last %},{% endif %}"
     {% endfor %}
     ");";
 
@@ -378,6 +378,43 @@ return success;
 }
 
 
+{%for query in model.get_count_queries() %}
+/**************************************************
+*
+*    {{query.name}}
+*
+*    Executes a custom count query with the provided
+*    parameters and outputs the retrieved count result.
+*
+**************************************************/
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}},
+    {% endfor %}
+    int * count_out
+    )
+{
+int success;
+sqlite3_stmt * count_query;
+
+count_query = NULL;
+*count_out = 0;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{query | query_get_full_string(model)}}, -1, &count_query, NULL ) );
+
+{%for query_param in query.params %}
+success &= ( SQLITE_OK == {{query_param | query_param_bind_call('count_query')}} );
+{% endfor %}
+
+success &= ( CQLITE_SUCCESS == cqlite_count_query_execute_prepared( count_query, count_out ) );
+
+sqlite3_finalize( count_query );
+
+return success;
+}
+{% endfor %}
 {% endfor %}
 
 {% for model in dataset.models %}
@@ -426,11 +463,11 @@ int success;
 success = 1;
 model = ({{model.get_pointer_type()}})model_out;
 
-{% for field in model.fields if field.is_primitive_type() %}
+{% for field in model.fields if field.field_type.is_primitive_type() %}
 {{field | field_read_result_function_call(model, 'query', 'model', 'success')}}
 {% endfor %}
 
-{% for field in model.fields if not field.is_primitive_type() %}
+{% for field in model.fields if not field.field_type.is_primitive_type() %}
 {{field | field_read_result_function_call(model, 'query', 'model', 'success')}}
 {% endfor %}
 

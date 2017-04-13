@@ -68,6 +68,7 @@ def accessor_source_render(dataset):
     env.filters['models_insert_all_new_function_name'] = _models_insert_all_new_function_name
     env.filters['models_save_all_existing_function_name'] = _models_save_all_function_name
     env.filters['query_get_full_string'] = _query_get_full_string
+    env.filters['query_param_bind_call'] = _query_param_bind_call
     env.filters['source_name'] = _accessor_source_name_get
     env.filters['table_create_query_var'] = _table_create_query_var
 
@@ -115,8 +116,8 @@ def _field_bind_function_call(field, model, query_var, model_var):
         bind_call_template ='{bind_function}( {query_var}, ({column_enum} + 1), {model_var}->{field_name}, -1, SQLITE_TRANSIENT )'
 
     bind_call = bind_call_template.format(bind_function=field.field_type.get_bind_function_name(),
-                                              query_var=query_var, column_enum=_field_column_enum(field, model),
-                                              model_var=model_var, field_name=field.name)
+                                          query_var=query_var, column_enum=_field_column_enum(field, model),
+                                          model_var=model_var, field_name=field.name)
     return bind_call
 
 
@@ -220,6 +221,18 @@ def _query_get_full_string(query, model):
     full_query_string = query_template.format(table_name=model.get_table_name(), query_string=query.query_string)
     return '"' + full_query_string + '"'
 
+
+def _query_param_bind_call(query_param, query_var):
+    """Returns the function call to bind a custom query parameter"""
+    if query_param.param_type.is_primitive_type():
+        bind_call_template ='{bind_function}( {query_var}, {param_position}, {param_name} )'
+    else:
+        bind_call_template ='{bind_function}( {query_var}, {param_position}, {param_name}, -1, SQLITE_TRANSIENT )'
+
+    bind_call = bind_call_template.format(bind_function=query_param.param_type.get_bind_function_name(),
+                                          query_var=query_var, param_position=query_param.position,
+                                          param_name=query_param.name)
+    return bind_call
 
 
 def _table_create_query_var(model):
