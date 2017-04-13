@@ -69,6 +69,7 @@ def accessor_source_render(dataset):
     env.filters['models_save_all_existing_function_name'] = _models_save_all_function_name
     env.filters['query_get_full_string'] = _query_get_full_string
     env.filters['query_param_bind_call'] = _query_param_bind_call
+    env.filters['select_query_get_count_query_string'] = _select_query_get_count_query_string
     env.filters['source_name'] = _accessor_source_name_get
     env.filters['table_create_query_var'] = _table_create_query_var
 
@@ -233,6 +234,14 @@ def _query_param_bind_call(query_param, query_var):
                                           query_var=query_var, param_position=query_param.position,
                                           param_name=query_param.name)
     return bind_call
+
+
+def _select_query_get_count_query_string(query, model):
+    """Returns the count query string that returns the number of results that will be read by a select query"""
+    count_query = 'SELECT COUNT(*) FROM {table_name} {query_string}'.format(
+        table_name=model.get_table_name(), query_string=query.query_string)
+    
+    return '"' + count_query + '"'
 
 
 def _table_create_query_var(model):

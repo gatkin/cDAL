@@ -508,6 +508,69 @@ return success;
 
 
 {% endfor %}
+{%for query in model.get_select_queries() %}
+/**************************************************
+*
+*    {{query.name}}
+*
+*    Executes a custom select query that is expected to
+*    return possibly many result with the provided
+*    parameters on the {{model.get_table_name()}} database table.
+*    The caller must call {{model.get_list_free_function_name()}}
+*    on models_out.
+*
+**************************************************/
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}},
+    {% endfor %}
+    {{model.get_list_pointer_type()}} models_out
+    )
+{
+int success;
+sqlite3_stmt * select_query;
+sqlite3_stmt * count_query;
+cqlite_rcode_t cqlite_rcode;
+
+select_query = NULL;
+count_query = NULL;
+{{model.get_list_init_function_name()}}( models_out );
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{query | query_get_full_string(model)}}, -1, &select_query, NULL ) ) &&
+          ( SQLITE_OK == sqlite3_prepare_v2( db, {{query | select_query_get_count_query_string(model)}}, -1, &count_query, NULL ) );
+
+{%for query_param in query.params %}
+success &= ( SQLITE_OK == {{query_param | query_param_bind_call('select_query')}} );
+{% endfor %}
+
+{%for query_param in query.params %}
+success &= ( SQLITE_OK == {{query_param | query_param_bind_call('count_query')}} );
+{% endfor %}
+
+if( success )
+   {
+    cqlite_rcode = cqlite_select_query_execute_prepared
+        (
+        select_query,
+        count_query,
+        {{model | model_add_to_result_list_function_name}},
+        sizeof( *models_out->list ),
+        (void**)&models_out->list,
+        &models_out->cnt
+        );
+    success = ( CQLITE_SUCCESS == cqlite_rcode );
+   }
+
+sqlite3_finalize( select_query );
+sqlite3_finalize( count_query );
+
+return success;
+}
+
+
+{% endfor %}
 {% endfor %}
 
 {% for model in dataset.models %}
