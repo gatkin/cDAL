@@ -85,6 +85,61 @@ int {{model | models_save_all_existing_function_name}}
     {{model.get_list_constant_pointer_type()}} models
     );
 
+{%for query in model.get_count_queries() %}
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}},
+    {% endfor %}
+    int * count_out
+    );
+
+{% endfor %}
+{%for query in model.get_delete_queries() %}
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}}{%if not loop.last %},{% endif %}
+
+    {% endfor %}
+    );
+
+{% endfor %}
+{%for query in model.get_find_queries() %}
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}},
+    {% endfor %}
+    {{model.get_pointer_type()}} model_out
+    );
+
+{% endfor %}
+{%for query in model.get_select_queries() %}
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}},
+    {% endfor %}
+    {{model.get_list_pointer_type()}} models_out
+    );
+
+{% endfor %}
+{%for query in model.get_update_queries() %}
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}}{%if not loop.last %},{% endif %}
+
+    {% endfor %}
+    );
+
+{% endfor %}
 {% endfor %}
 
 #endif /* #define {{dataset | header_guard_macro }}  */
