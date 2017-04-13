@@ -1,8 +1,10 @@
 """Generates code to access models stored in database tables"""
 import os
 from string import Template
+
 from codegen import templates
 from codegen.ctypes import ctypes_header_include_get
+from dataset import ModelQueryType
 
 
 def accessor_header_file_create(dataset, output_dir):
@@ -66,6 +68,7 @@ def accessor_source_render(dataset):
     env.filters['models_get_all_function_name'] = _models_get_all_function_name
     env.filters['models_insert_all_new_function_name'] = _models_insert_all_new_function_name
     env.filters['models_save_all_existing_function_name'] = _models_save_all_function_name
+    env.filters['query_get_full_string'] = _query_get_full_string
     env.filters['source_name'] = _accessor_source_name_get
     env.filters['table_create_query_var'] = _table_create_query_var
 
@@ -107,7 +110,7 @@ def _field_bind_function_call(field, model, query_var, model_var):
     """Returns the function call to bind the model field's value to a query variable"""
     # SQLite query parameters are 1-indexed, so we need to add one the the column
     # enum value which is 0-index.
-    if field.is_primitive_type():
+    if field.field_type.is_primitive_type():
         bind_call_template = Template(
             '$bind_function( $query_var, ($column_enum + 1), $model_var->$field_name )'
         )
@@ -116,7 +119,7 @@ def _field_bind_function_call(field, model, query_var, model_var):
             '$bind_function( $query_var, ($column_enum + 1), $model_var->$field_name, -1, SQLITE_TRANSIENT )'
         )
 
-    bind_call = bind_call_template.substitute(bind_function=field.get_bind_function_name(),
+    bind_call = bind_call_template.substitute(bind_function=field.field_type.get_bind_function_name(),
                                               query_var=query_var, column_enum=_field_column_enum(field, model),
                                               model_var=model_var, field_name=field.name)
 
@@ -130,7 +133,7 @@ def _field_column_enum(field, model):
 
 def _field_read_result_function_call(field, model, query_var, model_var, success_var):
     """Returns the function call to read a model field value from a query result"""
-    if field.is_primitive_type():
+    if field.field_type.is_primitive_type():
         result_call_template = Template(
             '$model_var->$field_name = $result_function( $query_var, $column_enum );'
         )
@@ -139,6 +142,7 @@ def _field_read_result_function_call(field, model, query_var, model_var, success
             '$success_var &= ( CQLITE_SUCCESS == $result_function( $query_var, $column_enum, &$model_var->$field_name ) );'
         )
     else:
+        # Fixed-size field
         result_call_template = Template(
             '$success_var &= ( CQLITE_SUCCESS == $result_function( $query_var, $column_enum, $model_var->$field_name, sizeof( $model_var->$field_name ) ) );'
         )
@@ -212,6 +216,22 @@ def _models_insert_all_new_function_name(model):
 def _models_save_all_function_name(model):
     """Returns the name of the function to save a list of models as existing records"""
     return '{}_save_all_existing'.format(model.get_table_name())
+
+
+def _query_get_full_string(query, model):
+    """Returns the full string for the query that can be executed on the database"""
+    query_templates = {
+        ModelQueryType.COUNT: 'SELECT COUNT(*) FROM {table_name} {query_string}',
+        ModelQueryType.FIND: 'SELECT * FROM {table_name} {query_string} LIMIT 1',
+        ModelQueryType.DELETE: 'DELETE FROM {table_name} {query_string}',
+        ModelQueryType.SELECT: 'SELECT * FROM {table_name} {query_string}',
+        ModelQueryType.UPDATE: 'UPDATE {table_name} {query_string}'
+    }
+    query_template = query_templates[query.query_type]
+
+    full_query_string = query_template.format(table_name=model.get_table_name(), query_string=query.query_string)
+    return '"' + full_query_string + '"'
+
 
 
 def _table_create_query_var(model):
