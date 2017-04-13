@@ -114,6 +114,7 @@ int {{query.name}}
     {%for query_param in query.params %}
     {{query_param.get_c_type()}} {{query_param.name}},
     {% endfor %}
+    int * found_out,
     {{model.get_pointer_type()}} model_out
     );
 

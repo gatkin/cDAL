@@ -137,7 +137,12 @@ return success;
 *
 *    {{model | model_find_by_id_function_name}} - Find {{model.name}} by id
 *
-*    Retrieves the
+*    Retrieves the model in the {{model.get_table_name()}} database table
+*    with the specified id. If a model is found, then
+*    found_out will be set to 1, and model_out will
+*    be populated with the retrieved record. Otherwise,
+*    found_out will be set ot 0. It is the caller's
+*    responsibility to call {{model.get_free_function_name()}} on model_out.
 *
 **************************************************/
 int {{model | model_find_by_id_function_name}}
@@ -453,6 +458,53 @@ sqlite3_finalize( delete_query );
 
 return success;
 }
+
+
+{% endfor %}
+{%for query in model.get_find_queries() %}
+/**************************************************
+*
+*    {{query.name}}
+*
+*    Executes a custom find query that is expected to
+*    only return a single result with the provided
+*    parameters on the {{model.get_table_name()}} database table.
+*    If a record was found, found_out will be set
+*    to 1, and model_out will be populated with the
+*    matching record. Otherwise, found_out will be
+*    set to 0. It is the caller's responsibility
+*    to call {{model.get_free_function_name()}} on model_out.
+*
+**************************************************/
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}},
+    {% endfor %}
+    int * found_out,
+    {{model.get_pointer_type()}} model_out
+    )
+{
+int success;
+sqlite3_stmt * find_query;
+
+find_query = NULL;
+*found_out = 0;
+{{model.get_init_function_name()}}( model_out );
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{query | query_get_full_string(model)}}, -1, &find_query, NULL ) );
+
+{%for query_param in query.params %}
+success &= ( SQLITE_OK == {{query_param | query_param_bind_call('find_query')}} );
+{% endfor %}
+
+success &= ( CQLITE_SUCCESS == cqlite_find( find_query, {{model | model_from_row_result_function_name}}, found_out, model_out ) );
+
+sqlite3_finalize( find_query );
+
+return success;
+}    
 
 
 {% endfor %}
