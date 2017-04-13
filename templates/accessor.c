@@ -384,7 +384,8 @@ return success;
 *    {{query.name}}
 *
 *    Executes a custom count query with the provided
-*    parameters and outputs the retrieved count result.
+*    parameters on the {{model.get_table_name()}} database table
+*    and outputs the retrieved count.
 *
 **************************************************/
 int {{query.name}}
@@ -414,6 +415,46 @@ sqlite3_finalize( count_query );
 
 return success;
 }
+
+
+{% endfor %}
+{%for query in model.get_delete_queries() %}
+/**************************************************
+*
+*    {{query.name}}
+*
+*    Executes a custom delete query with the provided
+*    parameters on the {{model.get_table_name()}} database table.
+*
+**************************************************/
+int {{query.name}}
+    (
+    sqlite3 * db,
+    {%for query_param in query.params %}
+    {{query_param.get_c_type()}} {{query_param.name}}{%if not loop.last %},{% endif %}
+
+    {% endfor %}
+    )
+{
+int success;
+sqlite3_stmt * delete_query;
+
+delete_query = NULL;
+
+success = ( SQLITE_OK == sqlite3_prepare_v2( db, {{query | query_get_full_string(model)}}, -1, &delete_query, NULL ) );
+
+{%for query_param in query.params %}
+success &= ( SQLITE_OK == {{query_param | query_param_bind_call('delete_query')}} );
+{% endfor %}
+
+success &= ( SQLITE_DONE == sqlite3_step( delete_query ) );
+
+sqlite3_finalize( delete_query );
+
+return success;
+}
+
+
 {% endfor %}
 {% endfor %}
 

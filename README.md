@@ -73,7 +73,7 @@ To use cDAL, developers provide a dataset definition JSON file to specify the mo
                 "delete": [
                     {
                         "name": "races_delete_all_by_distance_and_state",
-                        "query": "WHERE distance > {min_distance:Real} AND distance < {max_distance:Real} AND {state:Text}"
+                        "query": "WHERE {min_distance:Real} < distance AND distance < {max_distance:Real} AND state = {state:Text}"
                     }
                 ],
                 "update": [
