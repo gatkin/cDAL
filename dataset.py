@@ -11,6 +11,61 @@ class ModelFieldType(Enum):
     TEXT = 'Text'
     BLOB = 'Blob'
 
+    def get_bind_function_name(self):
+        """Returns the name of the function to bind values of the field's type to query parameters"""
+        bind_functions = {
+            ModelFieldType.PRIMARY_KEY: 'sqlite3_bind_int64',
+            ModelFieldType.FOREIGN_KEY: 'sqlite3_bind_int64',
+            ModelFieldType.INTEGER: 'sqlite3_bind_int',
+            ModelFieldType.REAL: 'sqlite3_bind_double',
+            ModelFieldType.TEXT: 'sqlite3_bind_text',
+            ModelFieldType.BLOB: 'sqlite3_bind_blob'
+        }
+
+        return bind_functions[self]
+
+    def get_c_type(self):
+        """Returns the C type corresponding to the model field type"""
+        c_types = {
+            ModelFieldType.PRIMARY_KEY: 'sqlite3_int64',
+            ModelFieldType.FOREIGN_KEY: 'sqlite3_int64',
+            ModelFieldType.INTEGER: 'int',
+            ModelFieldType.REAL: 'double',
+            ModelFieldType.TEXT: 'char',
+            ModelFieldType.BLOB: 'char',
+        }
+
+        return c_types[self]
+
+    def get_column_type(self):
+        """Returns the database column type corresponding to the field type"""
+        column_types = {
+            ModelFieldType.PRIMARY_KEY: 'INTEGER PRIMARY KEY',
+            ModelFieldType.FOREIGN_KEY: 'INTEGER',
+            ModelFieldType.INTEGER: 'INTEGER',
+            ModelFieldType.REAL: 'REAL',
+            ModelFieldType.TEXT: 'TEXT',
+            ModelFieldType.BLOB: 'BLOB',
+        }
+
+        return column_types[self]
+
+    def is_primitive_type(self):
+        """Returns True if the field is a primitive type field"""
+        primitive_types = {ModelFieldType.PRIMARY_KEY, ModelFieldType.FOREIGN_KEY,
+                           ModelFieldType.INTEGER, ModelFieldType.REAL}
+
+        return self in primitive_types
+
+
+class ModelQueryType(Enum):
+    """Specifies the type of a custom model query"""
+    SELECT = 0
+    FIND = 1
+    COUNT = 2
+    DELETE = 3
+    UPDATE = 4
+
 
 class Dataset:
     """Represents a dataset to be stored in a single database"""
@@ -26,14 +81,16 @@ class Dataset:
 class Model:
     """Represents a model corresponding to a single database table"""
 
-    def __init__(self, name, fields, type_name=None, table_name=None):
+    def __init__(self, name, fields, queries, type_name=None, table_name=None):
         self.name = name
         self.fields = fields
+        self.queries = queries
         self._type_name = type_name
         self._table_name = table_name
 
     def __repr__(self):
-        return 'Model(name={}, fields={})'.format(self.name, self.fields)
+        return 'Model(name={}, fields={}, queries={})'.format(
+            self.name, self.fields, self.queries)
 
     def get_c_type(self):
         """Returns the name of the model's C struct type"""
@@ -47,6 +104,18 @@ class Model:
     def get_constant_pointer_type(self):
         """Returns a string to declare a constant pointer to the model's C type"""
         return self.get_c_type() + ' const *'
+
+    def get_count_queries(self):
+        """Returns all count queries defined on the model"""
+        return self._get_queries_by_type(ModelQueryType.COUNT)
+
+    def get_delete_queries(self):
+        """Returns all delete queries defined on the model"""
+        return self._get_queries_by_type(ModelQueryType.DELETE)
+
+    def get_find_queries(self):
+        """Returns all find queries defined on the model"""
+        return self._get_queries_by_type(ModelQueryType.FIND)
 
     def get_free_function_name(self):
         """Returns the name of the function to free model structs"""
@@ -85,6 +154,10 @@ class Model:
         primary_key_field, = (field for field in self.fields if field.is_primary_key())
         return primary_key_field
 
+    def get_select_queries(self):
+        """Returns all select queries defined on the model"""
+        return self._get_queries_by_type(ModelQueryType.SELECT)
+
     def get_table_name(self):
         """Returns the name of the model's database table"""
         if self._table_name:
@@ -94,9 +167,17 @@ class Model:
 
         return table_name
 
+    def get_update_queries(self):
+        """Returns all update queries defined on the model"""
+        return self._get_queries_by_type(ModelQueryType.UPDATE)
+
     def has_dynamic_fields(self):
         """Returns True if the model has any dynamically-allocated fields"""
         return any((field.is_dynamically_allocated() for field in self.fields))
+
+    def _get_queries_by_type(self, query_type):
+        """Returns all queries of the specified type"""
+        return (query for query in self.queries if query.query_type == query_type)
 
 
 class ModelField:
@@ -110,32 +191,6 @@ class ModelField:
     def __repr__(self):
         return 'ModelField(name={},field_type={},max_length={})'.format(
             self.name, self.field_type, self.max_length)
-
-    def get_bind_function_name(self):
-        """Returns the name of the function to bind values of the field's type to qeury parameters"""
-        bind_functions = {
-            ModelFieldType.PRIMARY_KEY: 'sqlite3_bind_int64',
-            ModelFieldType.FOREIGN_KEY: 'sqlite3_bind_int64',
-            ModelFieldType.INTEGER: 'sqlite3_bind_int',
-            ModelFieldType.REAL: 'sqlite3_bind_double',
-            ModelFieldType.TEXT: 'sqlite3_bind_text',
-            ModelFieldType.BLOB: 'sqlite3_bind_blob'
-        }
-
-        return bind_functions[self.field_type]
-
-    def get_column_type(self):
-        """Returns the database column type corresponding to the field type"""
-        column_types = {
-            ModelFieldType.PRIMARY_KEY: 'INTEGER PRIMARY KEY',
-            ModelFieldType.FOREIGN_KEY: 'INTEGER',
-            ModelFieldType.INTEGER: 'INTEGER',
-            ModelFieldType.REAL: 'REAL',
-            ModelFieldType.TEXT: 'TEXT',
-            ModelFieldType.BLOB: 'BLOB',
-        }
-
-        return column_types[self.field_type]
 
     def get_name_declaration(self):
         """Returns the string to declare the field's name"""
@@ -165,7 +220,7 @@ class ModelField:
             ModelFieldType.BLOB: 'cqltie_fixed_length_blob_read',
         }
 
-        if self.is_primitive_type():
+        if self.field_type.is_primitive_type():
             result_function = primitive_result_functions[self.field_type]
         elif self.is_dynamically_allocated():
             result_function = dynamic_result_functions[self.field_type]
@@ -176,7 +231,7 @@ class ModelField:
 
     def get_type_declaration(self):
         """Returns the string to declare the field's type"""
-        c_type = self._get_c_type()
+        c_type = self.field_type.get_c_type()
 
         if self.is_dynamically_allocated():
             # Need to make it a pointer type if it is dynamically allocated
@@ -192,28 +247,45 @@ class ModelField:
 
     def is_dynamically_allocated(self):
         """Returns True if the memory for the field is dynamically allocated"""
-        return (not self.is_primitive_type()) and (not self.has_max_length())
+        return (not self.field_type.is_primitive_type()) and (not self.has_max_length())
 
     def is_primary_key(self):
         """Returns True if the field is a primary key field"""
         return self.field_type == ModelFieldType.PRIMARY_KEY
 
-    def is_primitive_type(self):
-        """Returns True if the field is a primitive type field"""
-        primitive_types = {ModelFieldType.PRIMARY_KEY, ModelFieldType.FOREIGN_KEY,
-                           ModelFieldType.INTEGER, ModelFieldType.REAL}
 
-        return self.field_type in primitive_types
+class ModelQuery:
+    """Represents a custom user-defined query on a model database table"""
 
-    def _get_c_type(self):
-        """Returns the C-type corresponding to the field's model field type"""
-        c_types = {
-            ModelFieldType.PRIMARY_KEY: 'sqlite3_int64',
-            ModelFieldType.FOREIGN_KEY: 'sqlite3_int64',
-            ModelFieldType.INTEGER: 'int',
-            ModelFieldType.REAL: 'double',
-            ModelFieldType.TEXT: 'char',
-            ModelFieldType.BLOB: 'char',
-        }
+    def __init__(self, query_type, name, query_string, params):
+        self.query_type = query_type
+        self.name = name
+        self.query_string = query_string
+        self.params = list(params)
 
-        return c_types[self.field_type]
+    def __repr__(self):
+        return 'ModelQuery(query_type={},name={},query_string="{}",params={})'.format(
+            self.query_type, self.name, self.query_string, self.params)
+
+
+class ModelQueryParam:
+    """Represents a parameter for a custom user-defined query on a model database table"""
+
+    def __init__(self, position, name, param_type):
+        self.position = position
+        self.name = name
+        self.param_type = param_type
+
+    def __repr__(self):
+        return 'ModelQueryParam(position={},name={},param_type={})'.format(
+            self.position, self.name, self.param_type)
+
+    def get_c_type(self):
+        """Returns the C type of the query parameter"""
+        pointer_types = {ModelFieldType.TEXT, ModelFieldType.BLOB}
+
+        c_type = self.param_type.get_c_type()
+        if self.param_type in pointer_types:
+            c_type += ' *'
+
+        return c_type
